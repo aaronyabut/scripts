@@ -8,13 +8,14 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from urllib.parse import urljoin
 
 ## Feature scope ##
-# complete adding all data needed in catalog page
+# complete adding all data needed in catalog page [DONE]
 # toggle in stock filter to also show out of stock
 # navigate to the product page for each of the vinyls
 
-scrapingGenre = "Rock"
+scrapingGenre = "Blues"
 
 def setup_driver():
     options = webdriver.ChromeOptions()
@@ -25,7 +26,6 @@ def setup_driver():
 
 def apply_filters(driver, url):
     driver.get(url)
-    # global scrapingGenre
 
     try:
         with open("initial_page.html", "w") as f:
@@ -44,7 +44,6 @@ def apply_filters(driver, url):
         print("Filter section expanded")
 
         filter_label = WebDriverWait(driver, 10).until(
-            # EC.element_to_be_clickable((By.XPATH, f"//label[@for='filter{scrapingGenre}']"))
             EC.element_to_be_clickable((By.XPATH, f"//label[@for='filter{scrapingGenre}']"))
         )
         filter_label.click()
@@ -54,7 +53,7 @@ def apply_filters(driver, url):
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, ".product-grid .product-item"))
         )
-        print("Rock filter applied successfully")
+        print(f"{scrapingGenre} filter applied successfully")
 
         visible_items = [item for item in driver.find_elements(By.CSS_SELECTOR, ".product-grid .product-item") if item.is_displayed()]
         print(f"Found {len(visible_items)} visible vinyl items in product grid")
@@ -80,7 +79,7 @@ def scrape_vinyl_data():
     headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"}
     session.headers.update(headers)
 
-    for i, item in enumerate(vinyl_items[:5]):  # Limit to 2
+    for i, item in enumerate(vinyl_items[:4]):  # Limit
         try:
             vinyl_info = {}
             item_html = item.get_attribute("outerHTML")
@@ -88,6 +87,16 @@ def scrape_vinyl_data():
 
             # Debug: Print raw item HTML
             print(f"Item {i+1} HTML: {item_html[:200]}...")
+
+            image_elem = item_soup.select_one(".img-fluid")
+            vinyl_info["vinyl_img"] = image_elem.get("src") if image_elem else ""
+            print(f"Image link: {vinyl_info['vinyl_img']}")
+
+
+            product_link_elem = item_soup.select_one(".product-name")
+            relative_href = product_link_elem.get("href") if product_link_elem else ""
+            vinyl_info["product_href"] = urljoin("https://vinyl.com/", relative_href) if relative_href else ""
+            print(f"H REF: {vinyl_info['product_href']}")
 
             title_elem = item_soup.select_one(".product-name h2")
             vinyl_info["vinyl_title"] = title_elem.text.strip() if title_elem else ""
@@ -107,9 +116,13 @@ def scrape_vinyl_data():
 
             sale_elem = item_soup.select_one(".sale-label")
             vinyl_info["sale_label"] = sale_elem.text.strip().upper() if sale_elem else ""
-            print(f"sale_label: {vinyl_info['sale_label']}")
+            print(f"Sale label: {vinyl_info['sale_label']}")
 
-            vinyl_info["genre"] = scrapingGenre
+            stock_elem = item_soup.select_one(".low-stock-label")
+            vinyl_info["low_stock_label"] = stock_elem.text.strip().upper() if stock_elem else ""
+            print(f"Stock label: {vinyl_info['low_stock_label']}")
+
+            vinyl_info["genre"] = scrapingGenre.lower()
 
             # detail_link_elem = item_soup.select_one(".product-name")
             # detail_link = detail_link_elem["href"] if detail_link_elem else None
@@ -139,7 +152,7 @@ def write_to_csv(data):
         print("No data to write")
         return
     # fieldnames = ["vinyl_title", "vinyl_artist", "price", "old_price", "release_date", "sale_label", "genre"]
-    fieldnames = ["vinyl_title", "vinyl_artist", "price", "old_price", "sale_label", "genre"]
+    fieldnames = ["vinyl_img", "product_href", "vinyl_title", "vinyl_artist", "price", "old_price", "sale_label", "low_stock_label", "genre"]
     with open("vinyl_data.csv", "w", newline="", encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
