@@ -32,28 +32,34 @@ def apply_filters(driver, url):
             f.write(driver.page_source)
         print("Initial page saved to initial_page.html")
 
-        genre_toggle = WebDriverWait(driver, 10).until(
+        genre_toggle = WebDriverWait(driver, 5).until(
             EC.element_to_be_clickable((By.XPATH, "//a[@href='#collapseFilterGender']"))
         )
         genre_toggle.click()
         print("Genre toggle clicked")
 
-        WebDriverWait(driver, 10).until(
+        WebDriverWait(driver, 5).until(
             EC.visibility_of_element_located((By.ID, "collapseFilterGender"))
         )
         print("Filter section expanded")
 
-        filter_label = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, f"//label[@for='filter{scrapingGenre}']"))
+        filter_label = WebDriverWait(driver, 5).until(
+            EC.element_to_be_clickable((By.XPATH, f"//label[@for='filter{scrapingGenre.title()}']"))
         )
         filter_label.click()
         print(f"{scrapingGenre} filter label clicked")
 
         time.sleep(5)  # Wait for filter to apply
-        WebDriverWait(driver, 10).until(
+        WebDriverWait(driver, 5).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, ".product-grid .product-item"))
         )
         print(f"{scrapingGenre} filter applied successfully")
+
+        stock_toggle = WebDriverWait(driver, 5).until(
+            EC.element_to_be_clickable((By.XPATH, "//div[@class='icon-filter-switch']"))
+        )
+        stock_toggle.click()
+        print("Stock filter applied successfully")
 
         visible_items = [item for item in driver.find_elements(By.CSS_SELECTOR, ".product-grid .product-item") if item.is_displayed()]
         print(f"Found {len(visible_items)} visible vinyl items in product grid")
@@ -122,6 +128,10 @@ def scrape_vinyl_data():
             vinyl_info["low_stock_label"] = stock_elem.text.strip().upper() if stock_elem else ""
             print(f"Stock label: {vinyl_info['low_stock_label']}")
 
+            no_stock_elem = item_soup.select_one(".no-stock-label")
+            vinyl_info["no_stock_label"] = "sold out".upper() if no_stock_elem else ""
+            print(f"No stock label: {vinyl_info['no_stock_label']}")
+
             vinyl_info["genre"] = scrapingGenre.lower()
 
             # detail_link_elem = item_soup.select_one(".product-name")
@@ -152,12 +162,12 @@ def write_to_csv(data):
         print("No data to write")
         return
     # fieldnames = ["vinyl_title", "vinyl_artist", "price", "old_price", "release_date", "sale_label", "genre"]
-    fieldnames = ["vinyl_img", "product_href", "vinyl_title", "vinyl_artist", "price", "old_price", "sale_label", "low_stock_label", "genre"]
-    with open("vinyl_data.csv", "w", newline="", encoding="utf-8") as file:
+    fieldnames = ["vinyl_img", "product_href", "vinyl_title", "vinyl_artist", "price", "old_price", "sale_label", "low_stock_label", "no_stock_label", "genre"]
+    with open(f"{scrapingGenre.lower()}_vinyl_data.csv", "w", newline="", encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(data)
-    print("Data written to vinyl_data.csv")
+    print(f"Data written to {scrapingGenre.lower()}_vinyl_data.csv")
 
 def main():
     print("Starting scraper...")
