@@ -9,6 +9,13 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+## Feature scope ##
+# complete adding all data needed in catalog page
+# toggle in stock filter to also show out of stock
+# navigate to the product page for each of the vinyls
+
+scrapingGenre = "Rock"
+
 def setup_driver():
     options = webdriver.ChromeOptions()
     # Keep visible for debugging
@@ -18,6 +25,7 @@ def setup_driver():
 
 def apply_filters(driver, url):
     driver.get(url)
+    # global scrapingGenre
 
     try:
         with open("initial_page.html", "w") as f:
@@ -36,10 +44,11 @@ def apply_filters(driver, url):
         print("Filter section expanded")
 
         filter_label = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//label[@for='filterRock']"))
+            # EC.element_to_be_clickable((By.XPATH, f"//label[@for='filter{scrapingGenre}']"))
+            EC.element_to_be_clickable((By.XPATH, f"//label[@for='filter{scrapingGenre}']"))
         )
         filter_label.click()
-        print("Rock filter label clicked")
+        print(f"{scrapingGenre} filter label clicked")
 
         time.sleep(5)  # Wait for filter to apply
         WebDriverWait(driver, 10).until(
@@ -71,7 +80,7 @@ def scrape_vinyl_data():
     headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"}
     session.headers.update(headers)
 
-    for i, item in enumerate(vinyl_items[:2]):  # Limit to 2
+    for i, item in enumerate(vinyl_items[:5]):  # Limit to 2
         try:
             vinyl_info = {}
             item_html = item.get_attribute("outerHTML")
@@ -81,29 +90,39 @@ def scrape_vinyl_data():
             print(f"Item {i+1} HTML: {item_html[:200]}...")
 
             title_elem = item_soup.select_one(".product-name h2")
-            vinyl_info["title"] = title_elem.text.strip() if title_elem else "N/A"
-            print(f"Title: {vinyl_info['title']}")
+            vinyl_info["vinyl_title"] = title_elem.text.strip() if title_elem else ""
+            print(f"Title: {vinyl_info['vinyl_title']}")
 
             price_elem = item_soup.select_one(".new-price")
-            vinyl_info["price"] = price_elem.text.strip() if price_elem else "N/A"
+            vinyl_info["price"] = price_elem.text.strip("$") if price_elem else ""
             print(f"Price: {vinyl_info['price']}")
 
+            old_price_elem = item_soup.select_one(".old-price")
+            vinyl_info["old_price"] = old_price_elem.text.strip("$") if old_price_elem else ""
+            print(f"Old price: {vinyl_info['old_price']}")
+
             artist_elem = item_soup.select_one(".product-artist h3")
-            vinyl_info["artist"] = artist_elem.text.strip() if artist_elem else "N/A"
-            print(f"Artist: {vinyl_info['artist']}")
+            vinyl_info["vinyl_artist"] = artist_elem.text.strip().title() if artist_elem else ""
+            print(f"Artist: {vinyl_info['vinyl_artist']}")
 
-            detail_link_elem = item_soup.select_one(".product-name")
-            detail_link = detail_link_elem["href"] if detail_link_elem else None
-            if detail_link:
-                full_detail_url = f"https://vinyl.com{detail_link}"
-                detail_response = session.get(full_detail_url)
-                detail_soup = BeautifulSoup(detail_response.content, "html.parser")
+            sale_elem = item_soup.select_one(".sale-label")
+            vinyl_info["sale_label"] = sale_elem.text.strip().upper() if sale_elem else ""
+            print(f"sale_label: {vinyl_info['sale_label']}")
 
-                release_date = detail_soup.select_one(".release-date")
-                vinyl_info["release_date"] = release_date.text.strip() if release_date else "N/A"
-                print(f"Release Date: {vinyl_info['release_date']}")
-            else:
-                vinyl_info["release_date"] = "N/A"
+            vinyl_info["genre"] = scrapingGenre
+
+            # detail_link_elem = item_soup.select_one(".product-name")
+            # detail_link = detail_link_elem["href"] if detail_link_elem else None
+            # if detail_link:
+            #     full_detail_url = f"https://vinyl.com{detail_link}"
+            #     detail_response = session.get(full_detail_url)
+            #     detail_soup = BeautifulSoup(detail_response.content, "html.parser")
+
+            #     release_date = detail_soup.select_one(".release-date")
+            #     vinyl_info["release_date"] = release_date.text.strip() if release_date else "N/A"
+            #     print(f"Release Date: {vinyl_info['release_date']}")
+            # else:
+            #     vinyl_info["release_date"] = "N/A"
 
             vinyl_data.append(vinyl_info)
             time.sleep(1)
@@ -119,7 +138,8 @@ def write_to_csv(data):
     if not data:
         print("No data to write")
         return
-    fieldnames = ["title", "price", "artist", "release_date"]
+    # fieldnames = ["vinyl_title", "vinyl_artist", "price", "old_price", "release_date", "sale_label", "genre"]
+    fieldnames = ["vinyl_title", "vinyl_artist", "price", "old_price", "sale_label", "genre"]
     with open("vinyl_data.csv", "w", newline="", encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
