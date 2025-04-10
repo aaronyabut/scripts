@@ -1,5 +1,6 @@
 # Output files from the scraper
 initial_page.html
 filtered_page.html
+detail_page*.html
 vinyl_data.csv
 blues_vinyl_data.csv
