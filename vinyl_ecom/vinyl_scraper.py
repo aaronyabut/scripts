@@ -12,8 +12,8 @@ from urllib.parse import urljoin
 
 ## Feature scope ##
 # complete adding all data needed in catalog page [DONE]
-# toggle in stock filter to also show out of stock
-# navigate to the product page for each of the vinyls
+# toggle in stock filter to also show out of stock [DONE]
+# Navigate to the product page for each of the vinyls
 
 scrapingGenre = "Blues"
 
@@ -85,24 +85,24 @@ def scrape_vinyl_data():
     headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"}
     session.headers.update(headers)
 
-    for i, item in enumerate(vinyl_items[:4]):  # Limit
+    for i, item in enumerate(vinyl_items[:2]):  # Limit
         try:
             vinyl_info = {}
             item_html = item.get_attribute("outerHTML")
             item_soup = BeautifulSoup(item_html, "html.parser")
 
             # Debug: Print raw item HTML
-            print(f"Item {i+1} HTML: {item_html[:200]}...")
+            # print(f"Item {i+1} HTML: {item_html[:200]}...")
 
             image_elem = item_soup.select_one(".img-fluid")
             vinyl_info["vinyl_img"] = image_elem.get("src") if image_elem else ""
-            print(f"Image link: {vinyl_info['vinyl_img']}")
+            # print(f"Image link: {vinyl_info['vinyl_img']}")
 
 
             product_link_elem = item_soup.select_one(".product-name")
             relative_href = product_link_elem.get("href") if product_link_elem else ""
             vinyl_info["product_href"] = urljoin("https://vinyl.com/", relative_href) if relative_href else ""
-            print(f"H REF: {vinyl_info['product_href']}")
+            # print(f"H REF: {vinyl_info['product_href']}")
 
             title_elem = item_soup.select_one(".product-name h2")
             vinyl_info["vinyl_title"] = title_elem.text.strip() if title_elem else ""
@@ -110,23 +110,23 @@ def scrape_vinyl_data():
 
             price_elem = item_soup.select_one(".new-price")
             vinyl_info["price"] = price_elem.text.strip("$") if price_elem else ""
-            print(f"Price: {vinyl_info['price']}")
+            # print(f"Price: {vinyl_info['price']}")
 
             old_price_elem = item_soup.select_one(".old-price")
             vinyl_info["old_price"] = old_price_elem.text.strip("$") if old_price_elem else ""
-            print(f"Old price: {vinyl_info['old_price']}")
+            # print(f"Old price: {vinyl_info['old_price']}")
 
             artist_elem = item_soup.select_one(".product-artist h3")
             vinyl_info["vinyl_artist"] = artist_elem.text.strip().title() if artist_elem else ""
-            print(f"Artist: {vinyl_info['vinyl_artist']}")
+            # print(f"Artist: {vinyl_info['vinyl_artist']}")
 
             sale_elem = item_soup.select_one(".sale-label")
             vinyl_info["sale_label"] = sale_elem.text.strip().upper() if sale_elem else ""
-            print(f"Sale label: {vinyl_info['sale_label']}")
+            # print(f"Sale label: {vinyl_info['sale_label']}")
 
             stock_elem = item_soup.select_one(".low-stock-label")
             vinyl_info["low_stock_label"] = stock_elem.text.strip().upper() if stock_elem else ""
-            print(f"Stock label: {vinyl_info['low_stock_label']}")
+            # print(f"Stock label: {vinyl_info['low_stock_label']}")
 
             no_stock_elem = item_soup.select_one(".no-stock-label")
             vinyl_info["no_stock_label"] = "sold out".upper() if no_stock_elem else ""
@@ -134,18 +134,23 @@ def scrape_vinyl_data():
 
             vinyl_info["genre"] = scrapingGenre.lower()
 
-            # detail_link_elem = item_soup.select_one(".product-name")
-            # detail_link = detail_link_elem["href"] if detail_link_elem else None
-            # if detail_link:
-            #     full_detail_url = f"https://vinyl.com{detail_link}"
-            #     detail_response = session.get(full_detail_url)
-            #     detail_soup = BeautifulSoup(detail_response.content, "html.parser")
+            detail_link_elem = item_soup.select_one(".product-name")
+            detail_link = detail_link_elem["href"] if detail_link_elem else None
+            if detail_link:
+                full_detail_url = f"https://vinyl.com{detail_link}"
+                detail_response = session.get(full_detail_url)
+                detail_soup = BeautifulSoup(detail_response.content, "html.parser")
 
-            #     release_date = detail_soup.select_one(".release-date")
-            #     vinyl_info["release_date"] = release_date.text.strip() if release_date else "N/A"
-            #     print(f"Release Date: {vinyl_info['release_date']}")
-            # else:
-            #     vinyl_info["release_date"] = "N/A"
+
+                description_elements = detail_soup.select(".inner-show-read-more p")
+                print(f"Description elements: {description_elements}")
+                description = [p.text.strip().replace('""','"') for p in description_elements] if description_elements else ["N/A"]
+                print(f"Description: {description}")
+                vinyl_info["vinyl_description"] = " ".join(description) if description != ["N/A"] else "N/A"
+                print(f"Vinyl description: {vinyl_info['vinyl_description']}")
+            else:
+                vinyl_info["release_date"] = "N/A"
+                print(f"NO DESCRIPTION ACCESSED")
 
             vinyl_data.append(vinyl_info)
             time.sleep(1)
@@ -162,7 +167,8 @@ def write_to_csv(data):
         print("No data to write")
         return
     # fieldnames = ["vinyl_title", "vinyl_artist", "price", "old_price", "release_date", "sale_label", "genre"]
-    fieldnames = ["vinyl_img", "product_href", "vinyl_title", "vinyl_artist", "price", "old_price", "sale_label", "low_stock_label", "no_stock_label", "genre"]
+    fieldnames = ["vinyl_description","vinyl_img", "product_href", "vinyl_title", "vinyl_artist", "price", "old_price", "sale_label", "low_stock_label", "no_stock_label", "genre"]
+    # fieldnames = ["vinyl_img", "product_href", "vinyl_title", "vinyl_artist", "price", "old_price", "sale_label", "low_stock_label", "no_stock_label", "genre"]
     with open(f"{scrapingGenre.lower()}_vinyl_data.csv", "w", newline="", encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
