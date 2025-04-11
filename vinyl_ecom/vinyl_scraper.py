@@ -93,7 +93,7 @@ def scrape_vinyl_data():
     item_details = []
 
     # First pass: Collect basic info and detail links from catalog
-    for i, item in enumerate(vinyl_items):  # Removed [:2] to scrape all items
+    for i, item in enumerate(vinyl_items[:2]):
         try:
             vinyl_info = {}
             item_html = item.get_attribute("outerHTML")
@@ -127,7 +127,7 @@ def scrape_vinyl_data():
 
             no_stock_elem = item_soup.select_one(".no-stock-label")
             vinyl_info["no_stock_label"] = "SOLD OUT" if no_stock_elem else ""
-            print(f"No stock label {i+1}: {vinyl_info['no_stock_label']}")
+            # print(f"No stock label {i+1}: {vinyl_info['no_stock_label']}")
 
             vinyl_info["genre"] = scrapingGenre.lower()
 
@@ -158,10 +158,23 @@ def scrape_vinyl_data():
 
                 # Product info
                 product_info_elem = detail_soup.select(".product-info p")
-                print(f"Product elements {i+1}: {product_info_elem}")
-                product_info = [p.text.strip() for p in product_info_elem if p.text.strip()] if product_info_elem else ["N/A"]
-                print(f"Product INFO {i+1}: {product_info}")
+                # print(f"Product elements {i+1}: {product_info_elem}")
+                product_info = [[p.find('b').text.strip(), p.text.split(':', 1)[1].strip()] for p in product_info_elem if p.text.strip() and p.find('b')] if product_info_elem else [["N/A", "N/A"]]
+                # print(f"Product INFO {i+1}: {product_info}")
                 vinyl_info["vinyl_info"] = product_info
+
+
+                # Playlist name
+                playlist_name_elem = detail_soup.select_one(".playlist-name")
+                vinyl_info["playlist_name"] = playlist_name_elem.text.strip () if playlist_name_elem else ""
+
+                # Tracklist
+                tracklist_elem = detail_soup.select(".tracklist-table tr")
+                tracklist = [[td.text.strip() for td in tr.select("td")[:3]] for tr in tracklist_elem if tr.text.strip()] if tracklist_elem else [["N/A", "N/A", "N/A"]]
+                vinyl_info["tracklist"] = tracklist
+                print(f"TRACKLIST:{tracklist}")
+
+
             else:
                 vinyl_info["vinyl_info"] = ["N/A"]
                 print(f"Item {i+1}: NO DETAIL PAGE ACCESSED")
@@ -182,7 +195,7 @@ def write_to_csv(data):
     if not data:
         print("No data to write")
         return
-    fieldnames = ["vinyl_info", "vinyl_img", "product_href", "vinyl_title", "vinyl_artist", "price", "old_price", "sale_label", "low_stock_label", "no_stock_label", "genre", "vinyl_description"]
+    fieldnames = ["playlist_name", "vinyl_img", "product_href", "vinyl_title", "vinyl_artist", "price", "old_price", "sale_label", "low_stock_label", "no_stock_label", "genre", "vinyl_description", "vinyl_info", "tracklist"]
     with open(f"{scrapingGenre.lower()}_vinyl_data.csv", "w", newline="", encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
