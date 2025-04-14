@@ -172,7 +172,43 @@ def scrape_vinyl_data():
                 tracklist_elem = detail_soup.select(".tracklist-table tr")
                 tracklist = [[td.text.strip() for td in tr.select("td")[:3]] for tr in tracklist_elem if tr.text.strip()] if tracklist_elem else [["N/A", "N/A", "N/A"]]
                 vinyl_info["tracklist"] = tracklist
-                print(f"TRACKLIST:{tracklist}")
+                # print(f"TRACKLIST:{tracklist}")
+
+                # Credits
+                # Main artist
+                # creator_content_elem = detail_soup.select(".creators-content .info")
+                # creator_content = [[span.text.strip() for span in info.select("span")[:2]] for info in creator_content_elem if info.text.strip()] if creator_content_elem else [["N/A", "N/A"]]
+
+                creator_content_elem = detail_soup.select(".creators-content .creators-content-item")
+                # print(f"CREATOR CONTENT 1:{creator_content_elem}")
+                creator_content = [
+                    [
+                        item.select_one(".wrap-image img")["src"] if item.select_one(".wrap-image img") else "N/A",
+                        item.select_one(".info .title").text.strip() if item.select_one(".info .title") else "N/A",
+                        item.select_one(".info .desc").text.strip() if item.select_one(".info .desc") else "N/A"
+                    ]
+                    for item in creator_content_elem
+                    if item.select_one(".info") and item.select_one(".info").text.strip()
+                ] if creator_content_elem else [["N/A", "N/A", "N/A"]]
+                print(f"creator content 2:{creator_content}")
+                vinyl_info["main_artists"] = creator_content
+
+                # Companies
+                company_content_elem = detail_soup.select(".companies .company-item")
+                # print(f"COMPANIES:{companies_elem}")
+                company_content = [
+                    [
+                        item.select_one(".wrap-image img")["src"] if item.select_one(".wrap-image img") else "N/A",
+                        item.select_one(".info .title").text.strip() if item.select_one(".info .title") else "N/A",
+                        item.select_one(".info .desc").text.strip() if item.select_one(".info .desc") else "N/A"
+                    ]
+                    for item in company_content_elem
+                    if item.select_one(".info") and item.select_one(".info").text.strip()
+                ] if company_content_elem else [["N/A", "N/A", "N/A"]]
+                # print(f"companies:{company_content}")
+                vinyl_info["companies"] = company_content
+
+
 
 
             else:
@@ -195,7 +231,7 @@ def write_to_csv(data):
     if not data:
         print("No data to write")
         return
-    fieldnames = ["playlist_name", "vinyl_img", "product_href", "vinyl_title", "vinyl_artist", "price", "old_price", "sale_label", "low_stock_label", "no_stock_label", "genre", "vinyl_description", "vinyl_info", "tracklist"]
+    fieldnames = ["companies", "main_artists", "playlist_name", "vinyl_img", "product_href", "vinyl_title", "vinyl_artist", "price", "old_price", "sale_label", "low_stock_label", "no_stock_label", "genre", "vinyl_description", "vinyl_info", "tracklist"]
     with open(f"{scrapingGenre.lower()}_vinyl_data.csv", "w", newline="", encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
