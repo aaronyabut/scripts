@@ -9,6 +9,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from urllib.parse import urljoin
+from selenium.common.exceptions import TimeoutException, WebDriverException
 
 ## Feature scope ##
 # complete adding all data needed in catalog page [DONE]
@@ -77,6 +78,73 @@ def apply_filters(driver, url):
 
     return driver
 
+def click_songwriters_div(driver):
+    """
+    Expands the Credits accordion and clicks the Songwriters div in the product-content-creators section.
+
+    Args:
+        driver: Selenium WebDriver instance (e.g., Chrome driver).
+
+    Returns:
+        bool: True if the click was successful, False if the Songwriters div doesn't exist or an error occurred.
+    """
+    max_attempts = 3
+    for attempt in range(max_attempts):
+        try:
+            # Wait for the product-content-collapse section
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, ".product-content-collapse"))
+            )
+            # Find the Credits accordion button
+            credits_button = WebDriverWait(driver, 5).until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, ".accordion-button[data-bs-target='#collapseOne']"))
+            )
+            # Scroll into view
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'center'});", credits_button)
+            # Check if accordion is collapsed
+            if "collapsed" in credits_button.get_attribute("class"):
+                print(f"Attempt {attempt + 1}: Expanding Credits accordion")
+                driver.execute_script("arguments[0].click();", credits_button)
+                # Wait for the accordion content to be visible
+                WebDriverWait(driver, 5).until(
+                    EC.visibility_of_element_located((By.ID, "collapseOne"))
+                )
+                print(f"Attempt {attempt + 1}: Credits accordion expanded")
+            else:
+                print(f"Attempt {attempt + 1}: Credits accordion already expanded")
+
+            # Wait for the product-content-creators section
+            WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, ".product-content-creators"))
+            )
+            # More specific XPath for Songwriters div
+            xpath = "//div[contains(@class, 'splide__slide') and .//span[@class='badge text-bg-secondary'] and normalize-space(text())='Songwriters']"
+            # Wait for the Songwriters div to be present and visible
+            songwriters_div = WebDriverWait(driver, 5).until(
+                EC.visibility_of_element_located((By.XPATH, xpath))
+            )
+            # Scroll into view
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'center'});", songwriters_div)
+            # Wait for clickability
+            WebDriverWait(driver, 5).until(
+                EC.element_to_be_clickable((By.XPATH, xpath))
+            )
+            # Click using JavaScript
+            driver.execute_script("arguments[0].click();", songwriters_div)
+            print(f"Attempt {attempt + 1}: Clicked on the 'Songwriters' div successfully")
+            return True
+        except (TimeoutException, WebDriverException) as e:
+            print(f"Attempt {attempt + 1} failed to click 'Songwriters' div: {e}")
+            if attempt == max_attempts - 1:
+                # Save page source for debugging
+                timestamp = time.time()
+                with open(f"debug_songwriters_failure_{timestamp}.html", "w", encoding="utf-8") as f:
+                    f.write(driver.page_source)
+                print(f"Saved page source to debug_songwriters_failure_{timestamp}.html")
+                return False
+            time.sleep(1)  # Brief pause before retry
+    return False
+
 def scrape_vinyl_data():
     base_url = "https://vinyl.com/pages/shop"
     driver = setup_driver()
@@ -127,7 +195,6 @@ def scrape_vinyl_data():
 
             no_stock_elem = item_soup.select_one(".no-stock-label")
             vinyl_info["no_stock_label"] = "SOLD OUT" if no_stock_elem else ""
-            # print(f"No stock label {i+1}: {vinyl_info['no_stock_label']}")
 
             vinyl_info["genre"] = scrapingGenre.lower()
 
@@ -158,29 +225,20 @@ def scrape_vinyl_data():
 
                 # Product info
                 product_info_elem = detail_soup.select(".product-info p")
-                # print(f"Product elements {i+1}: {product_info_elem}")
                 product_info = [[p.find('b').text.strip(), p.text.split(':', 1)[1].strip()] for p in product_info_elem if p.text.strip() and p.find('b')] if product_info_elem else [["N/A", "N/A"]]
-                # print(f"Product INFO {i+1}: {product_info}")
                 vinyl_info["vinyl_info"] = product_info
-
 
                 # Playlist name
                 playlist_name_elem = detail_soup.select_one(".playlist-name")
-                vinyl_info["playlist_name"] = playlist_name_elem.text.strip () if playlist_name_elem else ""
+                vinyl_info["playlist_name"] = playlist_name_elem.text.strip() if playlist_name_elem else ""
 
                 # Tracklist
                 tracklist_elem = detail_soup.select(".tracklist-table tr")
                 tracklist = [[td.text.strip() for td in tr.select("td")[:3]] for tr in tracklist_elem if tr.text.strip()] if tracklist_elem else [["N/A", "N/A", "N/A"]]
                 vinyl_info["tracklist"] = tracklist
-                # print(f"TRACKLIST:{tracklist}")
 
-                # Credits
-                # Main artist
-                # creator_content_elem = detail_soup.select(".creators-content .info")
-                # creator_content = [[span.text.strip() for span in info.select("span")[:2]] for info in creator_content_elem if info.text.strip()] if creator_content_elem else [["N/A", "N/A"]]
-
+                # Main artists
                 creator_content_elem = detail_soup.select(".creators-content .creators-content-item")
-                # print(f"CREATOR CONTENT 1:{creator_content_elem}")
                 creator_content = [
                     [
                         item.select_one(".wrap-image img")["src"] if item.select_one(".wrap-image img") else "N/A",
@@ -190,12 +248,11 @@ def scrape_vinyl_data():
                     for item in creator_content_elem
                     if item.select_one(".info") and item.select_one(".info").text.strip()
                 ] if creator_content_elem else [["N/A", "N/A", "N/A"]]
-                print(f"creator content 2:{creator_content}")
                 vinyl_info["main_artists"] = creator_content
+                print(f"creator content 2:{creator_content}")
 
                 # Companies
                 company_content_elem = detail_soup.select(".companies .company-item")
-                # print(f"COMPANIES:{companies_elem}")
                 company_content = [
                     [
                         item.select_one(".wrap-image img")["src"] if item.select_one(".wrap-image img") else "N/A",
@@ -205,14 +262,45 @@ def scrape_vinyl_data():
                     for item in company_content_elem
                     if item.select_one(".info") and item.select_one(".info").text.strip()
                 ] if company_content_elem else [["N/A", "N/A", "N/A"]]
-                # print(f"companies:{company_content}")
                 vinyl_info["companies"] = company_content
 
+                # Click the Songwriters div to switch to Songwriters view
+                if click_songwriters_div(driver):
+                    print(f"SONG WRITERS CLICKED")
+                    # Wait for the creators-content to update
+                    WebDriverWait(driver, 5).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, ".creators-content"))
+                    )
+                    # Update the soup to reflect the new page state
+                    detail_soup = BeautifulSoup(driver.page_source, "html.parser")
+                    # Save the updated page for debugging
+                    with open(f"detail_page_songwriters_{i+1}.html", "w", encoding="utf-8") as f:
+                        f.write(detail_soup.prettify())
+                    print(f"Saved songwriters page to detail_page_songwriters_{i+1}.html for {full_detail_url}")
 
-
+                    # Scrape Songwriters data
+                    songwriters_content_elem = detail_soup.select(".creators-content .creators-content-item")
+                    print(f"songwriters_content_elem {songwriters_content_elem}")
+                    songwriters_content = [
+                        [
+                            item.select_one(".wrap-image img")["src"] if item.select_one(".wrap-image img") else "N/A",
+                            item.select_one(".info .title").text.strip() if item.select_one(".info .title") else "N/A",
+                            item.select_one(".info .desc").text.strip() if item.select_one(".info .desc") else "N/A"
+                        ]
+                        for item in songwriters_content_elem
+                        # if item.select_one(".info") and item.select_one(".info").text.strip() and item.select_one(".info .desc").text.strip() == "Songwriters"
+                        if item.select_one(".info") and item.select_one(".info").text.strip()
+                    ]
+                    vinyl_info["songwriters"] = songwriters_content if songwriters_content else [["N/A", "N/A", "N/A"]]
+                    print(f"Songwriters content for item {i+1}: {songwriters_content}")
+                else:
+                    # If clicking failed or no Songwriters div, set default
+                    vinyl_info["songwriters"] = [["N/A", "N/A", "N/A"]]
+                    print(f"Item {i+1}: No Songwriters data available")
 
             else:
                 vinyl_info["vinyl_info"] = ["N/A"]
+                vinyl_info["songwriters"] = [["N/A", "N/A", "N/A"]]
                 print(f"Item {i+1}: NO DETAIL PAGE ACCESSED")
 
             vinyl_data.append(vinyl_info)
@@ -220,6 +308,7 @@ def scrape_vinyl_data():
         except Exception as e:
             print(f"Error scraping detail page for item {i+1}: {e}")
             vinyl_info["vinyl_info"] = ["N/A"]
+            vinyl_info["songwriters"] = [["N/A", "N/A", "N/A"]]
             vinyl_data.append(vinyl_info)  # Still add partial data
             continue
 
@@ -231,9 +320,14 @@ def write_to_csv(data):
     if not data:
         print("No data to write")
         return
-    fieldnames = ["companies", "main_artists", "playlist_name", "vinyl_img", "product_href", "vinyl_title", "vinyl_artist", "price", "old_price", "sale_label", "low_stock_label", "no_stock_label", "genre", "vinyl_description", "vinyl_info", "tracklist"]
-    with open(f"{scrapingGenre.lower()}_vinyl_data.csv", "w", newline="", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
+    fieldnames = [
+        "companies", "main_artists", "songwriters", "playlist_name", "vinyl_img",
+        "product_href", "vinyl_title", "vinyl_artist", "price", "old_price",
+        "sale_label", "low_stock_label", "no_stock_label", "genre",
+        "vinyl_description", "vinyl_info", "tracklist"
+    ]
+    with open(f"{scrapingGenre.lower()}_vinyl_data.csv", "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(data)
     print(f"Data written to {scrapingGenre.lower()}_vinyl_data.csv")
