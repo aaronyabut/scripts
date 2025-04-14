@@ -3,4 +3,5 @@ initial_page.html
 filtered_page.html
 detail_page*.html
 vinyl_data.csv
+debug*
 blues_vinyl_data.csv

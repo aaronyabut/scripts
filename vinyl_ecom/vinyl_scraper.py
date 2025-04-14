@@ -71,6 +71,13 @@ def apply_filters(driver, url):
         stock_toggle.click()
         print("Stock filter applied successfully")
 
+        show_more_button = WebDriverWait(driver, 5).until(
+            # EC.element_to_be_clickable((By.XPATH, "//button[text()='Show More' and @class='btn btn-primary btn-sm']"))
+            EC.element_to_be_clickable((By.XPATH, "//button[text()='Show More']"))
+        )
+        show_more_button.click()
+        print("SHOW MORE button clicked successfully")
+
         visible_items = [item for item in driver.find_elements(By.CSS_SELECTOR, ".product-grid .product-item") if item.is_displayed()]
         print(f"Found {len(visible_items)} visible vinyl items in product grid")
     except Exception as e:
@@ -138,8 +145,8 @@ def click_songwriters_div(driver):
             if attempt == max_attempts - 1:
                 # Save page source for debugging
                 timestamp = time.time()
-                with open(f"debug_songwriters_failure_{timestamp}.html", "w", encoding="utf-8") as f:
-                    f.write(driver.page_source)
+                # with open(f"debug_songwriters_failure_{timestamp}.html", "w", encoding="utf-8") as f:
+                    # f.write(driver.page_source)
                 print(f"Saved page source to debug_songwriters_failure_{timestamp}.html")
                 return False
             time.sleep(1)  # Brief pause before retry
@@ -161,7 +168,7 @@ def scrape_vinyl_data():
     item_details = []
 
     # First pass: Collect basic info and detail links from catalog
-    for i, item in enumerate(vinyl_items[:2]):
+    for i, item in enumerate(vinyl_items[:35]):
         try:
             vinyl_info = {}
             item_html = item.get_attribute("outerHTML")
@@ -214,8 +221,8 @@ def scrape_vinyl_data():
                     EC.presence_of_element_located((By.CSS_SELECTOR, ".product-info p"))
                 )
                 detail_soup = BeautifulSoup(driver.page_source, "html.parser")
-                with open(f"detail_page_{i+1}.html", "w", encoding="utf-8") as f:
-                    f.write(detail_soup.prettify())
+                # with open(f"detail_page_{i+1}.html", "w", encoding="utf-8") as f:
+                    # f.write(detail_soup.prettify())
                 print(f"Saved detail page to detail_page_{i+1}.html for {full_detail_url}")
 
                 # Vinyl description
@@ -274,13 +281,13 @@ def scrape_vinyl_data():
                     # Update the soup to reflect the new page state
                     detail_soup = BeautifulSoup(driver.page_source, "html.parser")
                     # Save the updated page for debugging
-                    with open(f"detail_page_songwriters_{i+1}.html", "w", encoding="utf-8") as f:
-                        f.write(detail_soup.prettify())
-                    print(f"Saved songwriters page to detail_page_songwriters_{i+1}.html for {full_detail_url}")
+                    # with open(f"detail_page_songwriters_{i+1}.html", "w", encoding="utf-8") as f:
+                        # f.write(detail_soup.prettify())
+                    # print(f"Saved songwriters page to detail_page_songwriters_{i+1}.html for {full_detail_url}")
 
                     # Scrape Songwriters data
                     songwriters_content_elem = detail_soup.select(".creators-content .creators-content-item")
-                    print(f"songwriters_content_elem {songwriters_content_elem}")
+                    # print(f"songwriters_content_elem {songwriters_content_elem}")
                     songwriters_content = [
                         [
                             item.select_one(".wrap-image img")["src"] if item.select_one(".wrap-image img") else "N/A",
@@ -292,7 +299,7 @@ def scrape_vinyl_data():
                         if item.select_one(".info") and item.select_one(".info").text.strip()
                     ]
                     vinyl_info["songwriters"] = songwriters_content if songwriters_content else [["N/A", "N/A", "N/A"]]
-                    print(f"Songwriters content for item {i+1}: {songwriters_content}")
+                    # print(f"Songwriters content for item {i+1}: {songwriters_content}")
                 else:
                     # If clicking failed or no Songwriters div, set default
                     vinyl_info["songwriters"] = [["N/A", "N/A", "N/A"]]
@@ -321,10 +328,11 @@ def write_to_csv(data):
         print("No data to write")
         return
     fieldnames = [
-        "companies", "main_artists", "songwriters", "playlist_name", "vinyl_img",
-        "product_href", "vinyl_title", "vinyl_artist", "price", "old_price",
+        "playlist_name", "vinyl_img", "product_href",
+        "vinyl_title", "vinyl_artist", "price", "old_price",
         "sale_label", "low_stock_label", "no_stock_label", "genre",
-        "vinyl_description", "vinyl_info", "tracklist"
+        "vinyl_description", "vinyl_info", "tracklist",
+        "companies", "main_artists", "songwriters"
     ]
     with open(f"{scrapingGenre.lower()}_vinyl_data.csv", "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
